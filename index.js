@@ -6,9 +6,9 @@ const app = express();
 app.use(express.json());
 
 // Configuración de Sequelize
-const sequelize = new Sequelize('nombre_de_tu_base', 'tu_usuario', 'tu_contraseña', {
-    host: 'tu_endpoint_ec2',
-    dialect: 'postgres',
+const sequelize = new Sequelize('database-2', 'admin', 'golazo12', {
+    host: 'database-2.cwmamnerktos.us-east-1.rds.amazonaws.com',
+    dialect: 'mysql',
 });
 
 // Definición de modelos
