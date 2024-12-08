@@ -330,14 +330,15 @@ const sns = new AWS.SNS();
 const mensaje = `
       Hola,
 
-      Aquí están los detalles del usuario con ID ${alumno.alumnoId}:
+      Aquí están los detalles del usuario con ID ${Alumno.alumnoId}:
 
-      Nombre: ${alumno.nombre}
-      Apellido: ${alumno.apellidos}
-      Correo electrónico: ${alumno.promedio}
+      Nombre: ${Alumno.nombres}
+      Apellido: ${Alumno.apellidos}
+      Correo electrónico: ${Alumno.promedio}
       
       Saludos.
-    `;
+    `
+;
 // Definir el contenido del correo
 const params2 = {
   Message: mensaje,
