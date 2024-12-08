@@ -24,7 +24,8 @@ const s3 = new AWS.S3();
 
 const subirArchivoAS3 = async () => {
     const bucketName = 'bucketdgo'; // Cambia por el nombre de tu bucket
-    const archivoPath = 'C:\Users\dgo28\Downloads\cat_test.jpg'; // Ruta local del archivo
+    const archivoPath = 'C:/Users/dgo28/Downloads/cat_test.jpg'; // Ruta con barras normales
+
     const key = `alumnos/1/${Date.now()}_cat_test.jpg`; // Define una ruta única en S3
 
     try {
@@ -173,7 +174,7 @@ app.delete('/alumnos/:id', async (req, res) => {
     }
 });
 
-/ POST /alumnos/{id}/fotoPerfil
+
 app.post('/alumnos/:id/fotoPerfil', upload.single('fotoPerfil'), async (req, res) => {
     const { id } = req.params;
     const file = req.file;
