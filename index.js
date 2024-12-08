@@ -11,6 +11,20 @@ const sequelize = new Sequelize('database-2', 'admin', 'golazo12', {
     dialect: 'mysql',
 });
 
+const multer = require('multer');
+
+// Configuración de multer
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/'); // Directorio donde se guardarán los archivos temporalmente
+    },
+    filename: (req, file, cb) => {
+        cb(null, `${Date.now()}_${file.originalname}`); // Nombre único para el archivo
+    }
+});
+
+const upload = multer({ storage });
+
 const AWS = require('aws-sdk');
 
 // Configuración del S3 para subir un archivo
@@ -184,29 +198,29 @@ app.post('/alumnos/:id/fotoPerfil', upload.single('fotoPerfil'), async (req, res
     }
 
     try {
-        // Llama a la función que ya tienes para subir el archivo
+        // Aquí se sube la imagen a S3
         const filePath = file.path;
-        const key = `alumnos/${id}/${file.filename}`; // Generar ruta única
-        const s3Url = await subirArchivoAS3(filePath, key); // Reutilizar tu función
+        const key = `alumnos/${id}/${file.filename}`;
+        const s3Url = await subirArchivoAS3(filePath, key); // Usar tu función de subida a S3
 
-       // Buscar o crear el alumno en la base de datos
-       let alumno = await Alumno.findByPk(id);
+        // Buscar o crear el alumno en la base de datos
+        let alumno = await Alumno.findByPk(id);
 
-       if (!alumno) {
-           // Si el alumno no existe, lo creamos
-           alumno = await Alumno.create({
-               id,
-               nombre: `Alumno ${id}`, // O personaliza el nombre como prefieras
-               fotoPerfil: s3Url
-           });
-       } else {
-           // Si el alumno existe, actualizamos la URL de la foto de perfil
-           alumno.fotoPerfil = s3Url;
-           await alumno.save();
-       }
+        if (!alumno) {
+            // Si el alumno no existe, lo creamos
+            alumno = await Alumno.create({
+                id,
+                nombre: `Alumno ${id}`,
+                fotoPerfil: s3Url
+            });
+        } else {
+            // Si el alumno existe, actualizamos la URL de la foto de perfil
+            alumno.fotoPerfil = s3Url;
+            await alumno.save();
+        }
 
-       // Eliminar el archivo local después de subirlo
-       fs.unlinkSync(filePath);
+        // Eliminar el archivo local después de subirlo
+        fs.unlinkSync(filePath);
 
         res.status(200).send({ message: 'Foto de perfil subida exitosamente', url: s3Url });
     } catch (error) {
@@ -214,7 +228,6 @@ app.post('/alumnos/:id/fotoPerfil', upload.single('fotoPerfil'), async (req, res
         res.status(500).send({ error: 'Error al subir la foto de perfil' });
     }
 });
-
 
 // Endpoints para manejo de sesiones
 app.post('/alumnos/:id/session/login', async (req, res) => {
