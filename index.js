@@ -7,6 +7,10 @@ const multer = require('multer');
 const bcrypt = require('bcrypt');
 
 const app = express();
+const axios = require('axios');
+const FormData = require('form-data');
+const fs = require('fs');
+const path = require('path');
 
 // Middlewares
 app.use(bodyParser.json());
@@ -43,6 +47,54 @@ const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
   dialect: 'mysql',
   port: DB_PORT
 });
+
+
+// Función para cargar fotos de perfil de múltiples alumnos
+const cargarFotosDeAlumnos = async () => {
+  try {
+    // 1. Obtén todos los alumnos de la base de datos
+    const alumnos = await Alumno.findAll();
+
+    if (!alumnos.length) {
+      console.log('No se encontraron alumnos en la base de datos.');
+      return;
+    }
+
+    // 2. Define la carpeta con las fotos de los alumnos
+    const carpetaFotos = './fotos'; // Cambia esto por tu carpeta local
+
+    for (const alumno of alumnos) {
+      const fotoPath = path.join(carpetaFotos, `${alumno.id}.jpg`); // Archivo debe llamarse como el ID del alumno
+      if (!fs.existsSync(fotoPath)) {
+        console.log(`No se encontró foto para el alumno con ID ${alumno.id}.`);
+        continue;
+      }
+
+      // 3. Prepara el archivo para subir
+      const formData = new FormData();
+      formData.append('foto', fs.createReadStream(fotoPath));
+
+      // 4. Enviar la solicitud al endpoint
+      try {
+        const response = await axios.post(
+          `http://localhost:3000/alumnos/${alumno.id}/fotoPerfil`,
+          formData,
+          { headers: formData.getHeaders() }
+        );
+        console.log(`Foto de ${alumno.nombre} subida exitosamente: ${response.data.fotoPerfilUrl}`);
+      } catch (error) {
+        console.error(`Error al subir la foto de ${alumno.nombre}: ${error.message}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error general:', error.message);
+  } finally {
+    await sequelize.close(); // Cierra la conexión a la base de datos
+  }
+};
+
+cargarFotosDeAlumnos();
+
 
 // Definición de modelos
 const Alumno = sequelize.define('Alumno', {
@@ -119,26 +171,33 @@ app.post('/alumnos', async (req, res) => {
 // Endpoint para subir foto de perfil
 app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
   try {
+    // Busca al alumno por ID
     const alumno = await Alumno.findByPk(req.params.id);
     if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado.' });
 
+    // Configuración de subida a AWS S3
     const params = {
-      Bucket: S3_BUCKET,
-      Key: `alumnos/${uuid.v4()}-${req.file.originalname}`,
-      Body: req.file.buffer,
-      ContentType: req.file.mimetype,
-      ACL: 'public-read'
+      Bucket: S3_BUCKET, // Nombre del bucket en AWS
+      Key: `alumnos/${uuid.v4()}-${req.file.originalname}`, // Nombre único para el archivo
+      Body: req.file.buffer, // Contenido del archivo
+      ContentType: req.file.mimetype, // Tipo MIME
+      ACL: 'public-read' // Permiso de lectura pública
     };
 
+    // Subida del archivo a S3
     const uploadResult = await s3.upload(params).promise();
+
+    // Guarda la URL en la base de datos del alumno
     alumno.fotoPerfilUrl = uploadResult.Location;
     await alumno.save();
 
+    // Responde con la URL pública de la foto
     res.status(200).json({ fotoPerfilUrl: uploadResult.Location });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 // Gestión de sesiones
 app.post('/alumnos/:id/session/login', async (req, res) => {
