@@ -32,7 +32,7 @@ const sns = new AWS.SNS();
 const dynamoDB = new AWS.DynamoDB.DocumentClient();
 
 // Configuración de base de datos
-const DB_NAME = 'base1';
+const DB_NAME = 'base2';
 const DB_USER = 'admin';
 const DB_PASSWORD = 'golazo12';
 const DB_HOST = 'database-2.cwmamnerktos.us-east-1.rds.amazonaws.com';
