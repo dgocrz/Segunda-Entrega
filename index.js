@@ -47,10 +47,10 @@ const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
 // Definición de modelos
 const Alumno = sequelize.define('Alumno', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  nombres: { type: DataTypes.STRING, allowNull: false },
-  apellidos: { type: DataTypes.STRING, allowNull: false },
-  matricula: { type: DataTypes.STRING, allowNull: false },
-  promedio: { type: DataTypes.FLOAT, allowNull: false },
+  nombres: { type: DataTypes.STRING, allowNull: true },
+  apellidos: { type: DataTypes.STRING, allowNull: true },
+  matricula: { type: DataTypes.STRING, allowNull: true },
+  promedio: { type: DataTypes.FLOAT, allowNull: true },
   password: {
     type: DataTypes.STRING,
     allowNull: false,
@@ -64,10 +64,10 @@ const Alumno = sequelize.define('Alumno', {
 
 const Profesor = sequelize.define('Profesor', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  numeroEmpleado: { type: DataTypes.STRING, allowNull: false },
-  nombres: { type: DataTypes.STRING, allowNull: false },
-  apellidos: { type: DataTypes.STRING, allowNull: false },
-  horasClase: { type: DataTypes.INTEGER, allowNull: false }
+  numeroEmpleado: { type: DataTypes.STRING, allowNull: true },
+  nombres: { type: DataTypes.STRING, allowNull: true },
+  apellidos: { type: DataTypes.STRING, allowNull: true },
+  horasClase: { type: DataTypes.INTEGER, allowNull: true }
 });
 
 // Configuración de Multer para subida de archivos
