@@ -63,10 +63,10 @@ const cargarFotosDeAlumnos = async () => {
     // 2. Define la carpeta con las fotos de los alumnos
     const carpetaFotos = './fotos'; // Cambia esto por tu carpeta local
 
-    for (const alumno of alumnos) {
-      const fotoPath = path.join(carpetaFotos, `${alumno.id}.jpg`); // Archivo debe llamarse como el ID del alumno
+    for (const alumno of Alumnos) {
+      const fotoPath = path.join(carpetaFotos, `${Alumno.alumnoId}.jpg`); // Archivo debe llamarse como el ID del alumno
       if (!fs.existsSync(fotoPath)) {
-        console.log(`No se encontró foto para el alumno con ID ${alumno.id}.`);
+        console.log(`No se encontró foto para el alumno con ID ${Alumno.alumnoId}.`);
         continue;
       }
 
@@ -77,13 +77,13 @@ const cargarFotosDeAlumnos = async () => {
       // 4. Enviar la solicitud al endpoint
       try {
         const response = await axios.post(
-          `http://localhost:3000/alumnos/${alumno.id}/fotoPerfil`,
+          `http://localhost:3000/alumnos/${Alumno.alumnoId}/fotoPerfil`,
           formData,
           { headers: formData.getHeaders() }
         );
-        console.log(`Foto de ${alumno.nombre} subida exitosamente: ${response.data.fotoPerfilUrl}`);
+        console.log(`Foto de ${Alumno.nombre} subida exitosamente: ${response.data.fotoPerfilUrl}`);
       } catch (error) {
-        console.error(`Error al subir la foto de ${alumno.nombre}: ${error.message}`);
+        console.error(`Error al subir la foto de ${Alumno.nombre}: ${error.message}`);
       }
     }
   } catch (error) {
