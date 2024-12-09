@@ -7,10 +7,10 @@ const multer = require('multer');
 const bcrypt = require('bcrypt');
 
 const app = express();
-const axios = require('axios');
-const FormData = require('form-data');
-const fs = require('fs');
-const path = require('path');
+//const axios = require('axios');
+//const FormData = require('form-data');
+//const fs = require('fs');
+//const path = require('path');
 
 // Middlewares
 app.use(bodyParser.json());
@@ -50,7 +50,7 @@ const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
 
 
 // Función para cargar fotos de perfil de múltiples alumnos
-const cargarFotosDeAlumnos = async () => {
+/*const cargarFotosDeAlumnos = async () => {
   try {
     // 1. Obtén todos los alumnos de la base de datos
     const alumnos = await Alumno.findAll();
@@ -94,7 +94,7 @@ const cargarFotosDeAlumnos = async () => {
 };
 
 cargarFotosDeAlumnos();
-
+*/
 
 // Definición de modelos
 const Alumno = sequelize.define('Alumno', {
@@ -171,33 +171,26 @@ app.post('/alumnos', async (req, res) => {
 // Endpoint para subir foto de perfil
 app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
   try {
-    // Busca al alumno por ID
     const alumno = await Alumno.findByPk(req.params.id);
     if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado.' });
 
-    // Configuración de subida a AWS S3
     const params = {
-      Bucket: S3_BUCKET, // Nombre del bucket en AWS
-      Key: `alumnos/${uuid.v4()}-${req.file.originalname}`, // Nombre único para el archivo
-      Body: req.file.buffer, // Contenido del archivo
-      ContentType: req.file.mimetype, // Tipo MIME
-      ACL: 'public-read' // Permiso de lectura pública
+      Bucket: S3_BUCKET,
+      Key: alumnos/${uuid.v4()}-${req.file.originalname},
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype,
+      ACL: 'public-read'
     };
 
-    // Subida del archivo a S3
     const uploadResult = await s3.upload(params).promise();
-
-    // Guarda la URL en la base de datos del alumno
     alumno.fotoPerfilUrl = uploadResult.Location;
     await alumno.save();
 
-    // Responde con la URL pública de la foto
     res.status(200).json({ fotoPerfilUrl: uploadResult.Location });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
-
 
 // Gestión de sesiones
 app.post('/alumnos/:id/session/login', async (req, res) => {
