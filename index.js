@@ -8,34 +8,23 @@ const bcrypt = require('bcrypt');
 
 const app = express();
 
-// Middlewares
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-
-// Configuración AWS
-AWS.config.update({
-  accessKeyId: process.env.AWS_ACCESS_KEY,
-  secretAccessKey: process.env.AWS_SECRET_KEY,
-  region: process.env.AWS_REGION
-});
-
-const s3 = new AWS.S3();
-const sns = new AWS.SNS();
-const dynamoDB = new AWS.DynamoDB.DocumentClient();
 
 // Configuración de base de datos
 const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, process.env.DB_PASSWORD, {
   host: process.env.DB_HOST,
   dialect: 'mysql',
-  port: process.env.DB_PORT
+  port: process.env.DB_PORT,
+  logging: false // Para evitar logs innecesarios
 });
 
-// Definición de modelos
+// Modelos
 const Alumno = sequelize.define('Alumno', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   nombres: { type: DataTypes.STRING, allowNull: false },
   apellidos: { type: DataTypes.STRING, allowNull: false },
-  matricula: { type: DataTypes.STRING, allowNull: false },
+  matricula: { type: DataTypes.STRING, allowNull: false, unique: true },
   promedio: { type: DataTypes.FLOAT, allowNull: false },
   password: {
     type: DataTypes.STRING,
@@ -50,131 +39,128 @@ const Alumno = sequelize.define('Alumno', {
 
 const Profesor = sequelize.define('Profesor', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  numeroEmpleado: { type: DataTypes.STRING, allowNull: false },
+  numeroEmpleado: { type: DataTypes.STRING, allowNull: false, unique: true },
   nombres: { type: DataTypes.STRING, allowNull: false },
   apellidos: { type: DataTypes.STRING, allowNull: false },
   horasClase: { type: DataTypes.INTEGER, allowNull: false }
 });
 
-// Configuración de Multer para subida de archivos
-const upload = multer({ storage: multer.memoryStorage() });
+// Middleware para manejo de errores
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Error interno del servidor' });
+});
 
-// Funciones de validación
-function validarAlumno(data) {
-  const requiredFields = ['nombres', 'apellidos', 'matricula', 'promedio', 'password'];
-  for (const field of requiredFields) {
-    if (!data[field]) return { isValid: false, message: `El campo ${field} es obligatorio.` };
+// Endpoints de Alumnos
+app.post('/alumnos', async (req, res) => {
+  const { nombres, apellidos, matricula, promedio, password } = req.body;
+  if (!nombres || !apellidos || !matricula || promedio == null || !password) {
+    return res.status(400).json({ error: 'Todos los campos son obligatorios' });
   }
-  if (typeof data.promedio !== 'number') return { isValid: false, message: 'El promedio debe ser un número.' };
-  return { isValid: true };
-}
 
-function validarProfesor(data) {
-  const requiredFields = ['numeroEmpleado', 'nombres', 'apellidos', 'horasClase'];
-  for (const field of requiredFields) {
-    if (!data[field]) return { isValid: false, message: `El campo ${field} es obligatorio.` };
+  try {
+    const alumno = await Alumno.create({ nombres, apellidos, matricula, promedio, password });
+    res.status(201).json(alumno);
+  } catch (error) {
+    console.error('Error al crear alumno:', error);
+    res.status(500).json({ error: 'Error al crear el alumno' });
   }
-  if (typeof data.horasClase !== 'number' || !Number.isInteger(data.horasClase)) {
-    return { isValid: false, message: 'Las horas de clase deben ser un número entero.' };
-  }
-  return { isValid: true };
-}
+});
 
-// Endpoints para Alumnos
 app.get('/alumnos', async (req, res) => {
   try {
     const alumnos = await Alumno.findAll();
     res.status(200).json(alumnos);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error al obtener alumnos:', error);
+    res.status(500).json({ error: 'Error al obtener los alumnos' });
   }
 });
 
-app.post('/alumnos', async (req, res) => {
-  const { isValid, message } = validarAlumno(req.body);
-  if (!isValid) return res.status(400).json({ error: message });
-
-  try {
-    const alumno = await Alumno.create(req.body);
-    res.status(201).json(alumno);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.put('/alumnos/:id', async (req, res) => {
-  const { isValid, message } = validarAlumno(req.body);
-  if (!isValid) return res.status(400).json({ error: message });
-
+app.get('/alumnos/:id', async (req, res) => {
   try {
     const alumno = await Alumno.findByPk(req.params.id);
-    if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado.' });
-
-    await alumno.update(req.body);
+    if (!alumno) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
     res.status(200).json(alumno);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error al obtener alumno:', error);
+    res.status(500).json({ error: 'Error al obtener el alumno' });
   }
 });
 
-// Endpoint para subir foto de perfil
-app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
+app.delete('/alumnos/:id', async (req, res) => {
   try {
     const alumno = await Alumno.findByPk(req.params.id);
-    if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado.' });
-
-    const params = {
-      Bucket: process.env.S3_BUCKET,
-      Key: `alumnos/${uuid.v4()}-${req.file.originalname}`,
-      Body: req.file.buffer,
-      ContentType: req.file.mimetype,
-      ACL: 'public-read'
-    };
-
-    const uploadResult = await s3.upload(params).promise();
-    alumno.fotoPerfilUrl = uploadResult.Location;
-    await alumno.save();
-
-    res.status(200).json({ fotoPerfilUrl: uploadResult.Location });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Gestión de sesiones
-app.post('/alumnos/:id/session/login', async (req, res) => {
-  try {
-    const { password } = req.body;
-    const alumno = await Alumno.findByPk(req.params.id);
-    if (!alumno || !bcrypt.compareSync(password, alumno.password)) {
-      return res.status(400).json({ error: 'Credenciales inválidas.' });
+    if (!alumno) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
     }
 
-    const sessionString = uuid.v4();
-    await dynamoDB.put({
-      TableName: process.env.SESSIONS_TABLE,
-      Item: { alumnoId: req.params.id, sessionString, active: true }
-    }).promise();
-
-    res.status(200).json({ sessionString });
+    await alumno.destroy();
+    res.status(200).send();
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error al eliminar alumno:', error);
+    res.status(500).json({ error: 'Error al eliminar el alumno' });
   }
 });
 
-app.post('/alumnos/:id/session/logout', async (req, res) => {
+// Endpoints de Profesores
+app.post('/profesores', async (req, res) => {
+  const { numeroEmpleado, nombres, apellidos, horasClase } = req.body;
+  if (!numeroEmpleado || !nombres || !apellidos || horasClase == null) {
+    return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+  }
+
   try {
-    await dynamoDB.update({
-      TableName: process.env.SESSIONS_TABLE,
-      Key: { alumnoId: req.params.id },
-      UpdateExpression: 'SET active = :inactive',
-      ExpressionAttributeValues: { ':inactive': false }
-    }).promise();
-
-    res.status(200).json({ message: 'Sesión cerrada.' });
+    const profesor = await Profesor.create({ numeroEmpleado, nombres, apellidos, horasClase });
+    res.status(201).json(profesor);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error al crear profesor:', error);
+    res.status(500).json({ error: 'Error al crear el profesor' });
   }
 });
 
-app.listen(3000, () => console.log('Servidor corriendo en el puerto 3000.'));
+app.get('/profesores/:id', async (req, res) => {
+  try {
+    const profesor = await Profesor.findByPk(req.params.id);
+    if (!profesor) {
+      return res.status(404).json({ error: 'Profesor no encontrado' });
+    }
+    res.status(200).json(profesor);
+  } catch (error) {
+    console.error('Error al obtener profesor:', error);
+    res.status(500).json({ error: 'Error al obtener el profesor' });
+  }
+});
+
+app.delete('/profesores/:id', async (req, res) => {
+  try {
+    const profesor = await Profesor.findByPk(req.params.id);
+    if (!profesor) {
+      return res.status(404).json({ error: 'Profesor no encontrado' });
+    }
+
+    await profesor.destroy();
+    res.status(200).send();
+  } catch (error) {
+    console.error('Error al eliminar profesor:', error);
+    res.status(500).json({ error: 'Error al eliminar el profesor' });
+  }
+});
+
+// Manejo de rutas no encontradas
+app.use((req, res) => {
+  res.status(404).json({ error: 'Ruta no encontrada' });
+});
+
+// Sincronización de base de datos e inicio del servidor
+sequelize.sync()
+  .then(() => {
+    app.listen(3000, () => {
+      console.log('Servidor en ejecución en el puerto 3000');
+    });
+  })
+  .catch(error => {
+    console.error('Error al sincronizar la base de datos:', error);
+  });
