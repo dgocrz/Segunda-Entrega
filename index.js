@@ -49,52 +49,6 @@ const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
 });
 
 
-// Función para cargar fotos de perfil de múltiples alumnos
-/*const cargarFotosDeAlumnos = async () => {
-  try {
-    // 1. Obtén todos los alumnos de la base de datos
-    const alumnos = await Alumno.findAll();
-
-    if (!alumnos.length) {
-      console.log('No se encontraron alumnos en la base de datos.');
-      return;
-    }
-
-    // 2. Define la carpeta con las fotos de los alumnos
-    const carpetaFotos = './fotos'; // Cambia esto por tu carpeta local
-
-    for (const alumno of Alumnos) {
-      const fotoPath = path.join(carpetaFotos, `${Alumno.alumnoId}.jpg`); // Archivo debe llamarse como el ID del alumno
-      if (!fs.existsSync(fotoPath)) {
-        console.log(`No se encontró foto para el alumno con ID ${Alumno.alumnoId}.`);
-        continue;
-      }
-
-      // 3. Prepara el archivo para subir
-      const formData = new FormData();
-      formData.append('foto', fs.createReadStream(fotoPath));
-
-      // 4. Enviar la solicitud al endpoint
-      try {
-        const response = await axios.post(
-          `http://localhost:3000/alumnos/${Alumno.alumnoId}/fotoPerfil`,
-          formData,
-          { headers: formData.getHeaders() }
-        );
-        console.log(`Foto de ${Alumno.nombre} subida exitosamente: ${response.data.fotoPerfilUrl}`);
-      } catch (error) {
-        console.error(`Error al subir la foto de ${Alumno.nombre}: ${error.message}`);
-      }
-    }
-  } catch (error) {
-    console.error('Error general:', error.message);
-  } finally {
-    await sequelize.close(); // Cierra la conexión a la base de datos
-  }
-};
-
-cargarFotosDeAlumnos();
-*/
 
 // Definición de modelos
 const Alumno = sequelize.define('Alumno', {
@@ -168,27 +122,44 @@ app.post('/alumnos', async (req, res) => {
   }
 });
 
-// Endpoint para subir foto de perfil
+//Endpoint para S3
+
 app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
   try {
     const alumno = await Alumno.findByPk(req.params.id);
-    if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado.' });
+    if (!alumno) {
+      return res.status(404).json({ error: 'Alumno no encontrado.' });
+    }
 
+    if (!req.file) {
+      return res.status(400).json({ error: 'No se ha proporcionado ninguna foto.' });
+    }
+
+    // Configuración de los parámetros de subida a S3
     const params = {
       Bucket: S3_BUCKET,
-      Key: alumnos/${uuid.v4()}-${req.file.originalname},
-      Body: req.file.buffer,
-      ContentType: req.file.mimetype,
-      ACL: 'public-read'
+      Key: `alumnos/${uuid.v4()}-${req.file.originalname}`, // Nombre único del archivo en S3
+      Body: req.file.buffer, // Contenido del archivo
+      ContentType: req.file.mimetype, // Tipo MIME del archivo
+      ACL: 'public-read', // Acceso público al archivo
     };
 
-    const uploadResult = await s3.upload(params).promise();
-    alumno.fotoPerfilUrl = uploadResult.Location;
+    // Subir el archivo a S3
+    const command = new PutObjectCommand(params);
+    await s3Client.send(command);
+
+    // Obtener la URL pública del archivo
+    const fotoPerfilUrl = `https://${S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
+
+    // Guardar la URL en el registro del alumno
+    alumno.fotoPerfilUrl = fotoPerfilUrl;
     await alumno.save();
 
-    res.status(200).json({ fotoPerfilUrl: uploadResult.Location });
+    // Responder con la URL de la foto
+    res.status(200).json({ fotoPerfilUrl });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error al subir la foto de perfil:', error);
+    res.status(500).json({ error: 'Error al subir la foto de perfil.' });
   }
 });
 
