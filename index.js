@@ -37,7 +37,7 @@ const s3Client = new S3Client({
   }
 });
 
-const s3 = new AWS.S3();
+//const s3 = new AWS.S3();
 const sns = new AWS.SNS();
 const dynamoDB = new AWS.DynamoDB.DocumentClient();
 
