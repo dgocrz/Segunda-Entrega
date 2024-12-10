@@ -96,15 +96,21 @@ function validarAlumno(data) {
 }
 
 function validarProfesor(data) {
-  const requiredFields = ['numeroEmpleado', 'nombres', 'apellidos', 'horasClase'];
-  for (const field of requiredFields) {
-    if (!data[field]) return { isValid: false, message: `El campo ${field} es obligatorio.` };
+  if (!data.nombres || data.nombres.trim() === '') {
+    return { isValid: false, message: 'El campo nombres es obligatorio.' };
   }
-  if (typeof data.horasClase !== 'number' || !Number.isInteger(data.horasClase)) {
-    return { isValid: false, message: 'Las horas de clase deben ser un número entero.' };
+  if (!data.apellidos) {
+    return { isValid: false, message: 'El campo apellidos es obligatorio.' };
+  }
+  if (!data.numeroEmpleado) {
+    return { isValid: false, message: 'El campo numeroEmpleado es obligatorio.' };
+  }
+  if (typeof data.horasClase !== 'number' || data.horasClase < 0) {
+    return { isValid: false, message: 'Las horas de clase deben ser un número entero no negativo.' };
   }
   return { isValid: true };
 }
+
 function getRandomId() {
   return Math.floor(Math.random() * 10000).toString();
 }
@@ -236,6 +242,68 @@ app.put('/alumnos/:id', async (req, res) => {
     }
     await alumno.update(req.body);
     res.status(200).json(alumno);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+// Endpoints de profesores
+app.get('/profesores', async (req, res) => {
+  try {
+    const profesores = await Profesor.findAll();
+    res.status(200).json(profesores);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/profesores', async (req, res) => {
+  const { isValid, message } = validarProfesor(req.body);
+  if (!isValid) return res.status(400).json({ error: message });
+
+  try {
+    const profesor = await Profesor.create(req.body);
+    res.status(201).json(profesor);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/profesores/:id', async (req, res) => {
+  try {
+    const profesor = await Profesor.findByPk(req.params.id);
+    if (!profesor) {
+      return res.status(404).json({ error: 'Profesor no encontrado.' });
+    }
+    res.status(200).json(profesor);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/profesores/:id', async (req, res) => {
+  const { isValid, message } = validarProfesor(req.body);
+  if (!isValid) return res.status(400).json({ error: message });
+
+  try {
+    const profesor = await Profesor.findByPk(req.params.id);
+    if (!profesor) {
+      return res.status(404).json({ error: 'Profesor no encontrado.' });
+    }
+    await profesor.update(req.body);
+    res.status(200).json(profesor);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/profesores/:id', async (req, res) => {
+  try {
+    const profesor = await Profesor.findByPk(req.params.id);
+    if (!profesor) {
+      return res.status(404).json({ error: 'Profesor no encontrado.' });
+    }
+    await profesor.destroy();
+    res.status(200).json({ message: 'Profesor eliminado.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
