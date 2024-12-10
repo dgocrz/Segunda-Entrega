@@ -6,6 +6,9 @@ const uuid = require('uuid');
 const multer = require('multer');
 const bcrypt = require('bcrypt');
 
+
+const app = express(); // Esto debe estar antes de app.use
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
