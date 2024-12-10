@@ -26,6 +26,16 @@ AWS.config.update({
   sessionToken: AWS_SESSION_TOKEN,
   region: AWS_REGION
 });
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+
+const s3Client = new S3Client({ 
+  region: AWS_REGION,
+  credentials: {
+    accessKeyId: AWS_ACCESS_KEY,
+    secretAccessKey: AWS_SECRET_KEY,
+    sessionToken: AWS_SESSION_TOKEN
+  }
+});
 
 const s3 = new AWS.S3();
 const sns = new AWS.SNS();
@@ -152,7 +162,7 @@ app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
     await s3Client.send(command);
 
     // Obtener la URL pública del archivo
-    const fotoPerfilUrl = `https://${S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
+    const fotoPerfilUrl = `https://${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${params.Key}`;
 
     // Guardar la URL en el registro del alumno
     alumno.fotoPerfilUrl = fotoPerfilUrl;
@@ -165,7 +175,6 @@ app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
     res.status(500).json({ error: 'Error al subir la foto de perfil.' });
   }
 });
-
 // Gestión de sesiones
 app.post('/alumnos/:id/session/login', async (req, res) => {
   try {
