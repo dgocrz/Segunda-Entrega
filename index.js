@@ -6,13 +6,6 @@ const uuid = require('uuid');
 const multer = require('multer');
 const bcrypt = require('bcrypt');
 
-const app = express();
-//const axios = require('axios');
-//const FormData = require('form-data');
-//const fs = require('fs');
-//const path = require('path');
-
-// Middlewares
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -98,6 +91,13 @@ function validarProfesor(data) {
     return { isValid: false, message: 'Las horas de clase deben ser un número entero.' };
   }
   return { isValid: true };
+}
+function getRandomId() {
+  return Math.floor(Math.random() * 10000).toString();
+}
+
+function getPromedio() {
+  return parseFloat((Math.random() * 10).toFixed(2));
 }
 
 // Endpoints de alumnos
@@ -194,6 +194,54 @@ app.post('/alumnos/:id/session/logout', async (req, res) => {
     }).promise();
 
     res.status(200).json({ message: 'Sesión cerrada.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Retrieve an Alumno by ID
+app.get('/alumnos/:id', async (req, res) => {
+  try {
+    const alumno = await Alumno.findByPk(req.params.id);
+    if (!alumno) {
+      return res.status(404).json({ error: 'Alumno no encontrado.' });
+    }
+    res.status(200).json(alumno);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update an Alumno by ID
+app.put('/alumnos/:id', async (req, res) => {
+  const { isValid, message } = validarAlumno(req.body);
+  if (!isValid) return res.status(400).json({ error: message });
+
+  try {
+    const alumno = await Alumno.findByPk(req.params.id);
+    if (!alumno) {
+      return res.status(404).json({ error: 'Alumno no encontrado.' });
+    }
+    await alumno.update(req.body);
+    res.status(200).json(alumno);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Verify Session
+app.post('/alumnos/:id/session/verify', async (req, res) => {
+  try {
+    const { sessionString } = req.body;
+    const session = await dynamoDB.get({
+      TableName: 'sesiones-alumnos',
+      Key: { alumnoId: req.params.id }
+    }).promise();
+
+    if (session.Item?.sessionString === sessionString && session.Item.active) {
+      return res.status(200).json({ message: 'Sesión válida.' });
+    }
+    res.status(400).json({ error: 'Sesión inválida o expirada.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
