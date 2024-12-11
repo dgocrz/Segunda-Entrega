@@ -63,14 +63,12 @@ const Alumno = sequelize.define('Alumno', {
   apellidos: { type: DataTypes.STRING, allowNull: true },
   matricula: { type: DataTypes.STRING, allowNull: true },
   promedio: { type: DataTypes.FLOAT, allowNull: true },
- password: {
+  password: {
     type: DataTypes.STRING,
-    allowNull: true,  // Cambia a true para ser más flexible
+    allowNull: false,
     set(value) {
-      if (value) {
-        const salt = bcrypt.genSaltSync(10);
-        this.setDataValue('password', bcrypt.hashSync(value, salt));
-      }
+      const salt = bcrypt.genSaltSync(10);
+      this.setDataValue('password', bcrypt.hashSync(value, salt));
     }
   },
   fotoPerfilUrl: { type: DataTypes.STRING, allowNull: true }
@@ -89,25 +87,12 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // Funciones de validación
 function validarAlumno(data) {
-  const errors = [];
-  
-  // Elimina validaciones estrictas
-  if (data.nombres && typeof data.nombres !== 'string') {
-    errors.push('nombres debe ser una cadena de texto');
+  const requiredFields = ['nombres', 'apellidos', 'matricula', 'promedio', 'password'];
+  for (const field of requiredFields) {
+    if (!data[field]) return { isValid: false, message: `El campo ${field} es obligatorio.` };
   }
-  
-  if (data.apellidos && typeof data.apellidos !== 'string') {
-    errors.push('apellidos debe ser una cadena de texto');
-  }
-  
-  if (data.promedio && typeof data.promedio !== 'number') {
-    errors.push('El promedio debe ser un número');
-  }
-
-  return {
-    isValid: errors.length === 0,
-    message: errors.join(', ')
-  };
+  if (typeof data.promedio !== 'number') return { isValid: false, message: 'El promedio debe ser un número.' };
+  return { isValid: true };
 }
 
 function validarProfesor(data) {
@@ -133,9 +118,6 @@ function getRandomId() {
 function getPromedio() {
   return parseFloat((Math.random() * 10).toFixed(2));
 }
-function methodNotAllowed(req, res, next) {
-  res.status(405).json({ error: 'Método no permitido' });
-}
 
 // Endpoints de alumnos
 app.get('/alumnos', async (req, res) => {
@@ -157,7 +139,7 @@ app.post('/alumnos', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-}).all('/alumnos', methodNotAllowed);
+});
 
 //Endpoint para S3
 
@@ -172,22 +154,27 @@ app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
       return res.status(400).json({ error: 'No se ha proporcionado ninguna foto.' });
     }
 
+    // Configuración de los parámetros de subida a S3
     const params = {
       Bucket: S3_BUCKET,
-      Key: `alumnos/${uuid.v4()}-${req.file.originalname}`,
-      Body: req.file.buffer,
-      ContentType: req.file.mimetype,
-      ACL: 'public-read',
+      Key: `alumnos/${uuid.v4()}-${req.file.originalname}`, // Nombre único del archivo en S3
+      Body: req.file.buffer, // Contenido del archivo
+      ContentType: req.file.mimetype, // Tipo MIME del archivo
+      ACL: 'public-read', // Acceso público al archivo
     };
 
+    // Subir el archivo a S3
     const command = new PutObjectCommand(params);
     await s3Client.send(command);
 
+    // Obtener la URL pública del archivo
     const fotoPerfilUrl = `https://${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${params.Key}`;
 
+    // Guardar la URL en el registro del alumno
     alumno.fotoPerfilUrl = fotoPerfilUrl;
     await alumno.save();
 
+    // Responder con la URL de la foto
     res.status(200).json({ fotoPerfilUrl });
   } catch (error) {
     console.error('Error al subir la foto de perfil:', error);
@@ -376,15 +363,14 @@ app.post('/alumnos/:id/send-email', async (req, res) => {
     }
 
     const params = {
-      Message: `Email para alumno: ${alumno.nombres || 'Sin nombre'} ${alumno.apellidos || 'Sin apellido'}`,
+      Message: `Email para alumno: ${alumno.nombres} ${alumno.apellidos}`,
       TopicArn: SNS_TOPIC_ARN
     };
 
     await sns.publish(params).promise();
     res.status(200).json({ message: 'Email enviado exitosamente' });
   } catch (error) {
-    console.error('Error al enviar email:', error);
-    res.status(500).json({ error: 'No se pudo enviar el email.' });
+    res.status(500).json({ error: error.message });
   }
 });
 // Sincronización e inicio del servidor
