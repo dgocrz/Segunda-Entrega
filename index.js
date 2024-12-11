@@ -189,7 +189,7 @@ app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
 
     // Responder con la URL de la foto
     res.status(200).json({ fotoPerfilUrl });
-  } catch (error) {
+    catch (error) {
     console.error('Error en el endpoint /alumnos/:id/fotoPerfil:', error);
     res.status(500).json({ error: 'Error interno del servidor.' });
   }
