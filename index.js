@@ -154,7 +154,7 @@ if (!req.file) {
 }
 
     // Configuración de los parámetros de subida a S3
- app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
+app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
   try {
     const alumno = await Alumno.findByPk(req.params.id);
     if (!alumno) {
@@ -189,7 +189,6 @@ if (!req.file) {
 
     // Responder con la URL de la foto
     res.status(200).json({ fotoPerfilUrl });
-
   } catch (error) {
     console.error('Error en el endpoint /alumnos/:id/fotoPerfil:', error);
     res.status(500).json({ error: 'Error interno del servidor.' });
