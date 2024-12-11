@@ -181,6 +181,179 @@ app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
     res.status(500).json({ error: 'Error al subir la foto de perfil.' });
   }
 });
+// Gestión de sesiones
+app.post('/alumnos/:id/session/login', async (req, res) => {
+  try {
+    const { password } = req.body;
+    const alumno = await Alumno.findByPk(req.params.id);
+    if (!alumno || !bcrypt.compareSync(password, alumno.password)) {
+      return res.status(400).json({ error: 'Credenciales inválidas.' });
+    }
+
+    // CHANGE: Generate a 128-character session string
+    const sessionString = uuid.v4().repeat(4).slice(0, 128);
+
+    await dynamoDB.put({
+      TableName: 'sesiones-alumnos',
+      Item: { 
+        alumnoId: req.params.id, 
+        sessionString, 
+        active: true 
+      }
+    }).promise();
+
+    res.status(200).json({ sessionString });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/alumnos/:id/session/logout', async (req, res) => {
+  try {
+    const { sessionString } = req.body;  // CHANGE: Add this line to get sessionString from request
+
+    await dynamoDB.update({
+      TableName: 'sesiones-alumnos',
+      Key: { 
+        alumnoId: req.params.id,
+        sessionString: sessionString  // CHANGE: Use the specific sessionString
+      },
+      UpdateExpression: 'SET active = :inactive',
+      ExpressionAttributeValues: { ':inactive': false }
+    }).promise();
+
+    res.status(200).json({ message: 'Sesión cerrada.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+// Retrieve an Alumno by ID
+app.get('/alumnos/:id', async (req, res) => {
+  try {
+    const alumno = await Alumno.findByPk(req.params.id);
+    if (!alumno) {
+      return res.status(404).json({ error: 'Alumno no encontrado.' });
+    }
+    res.status(200).json(alumno);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update an Alumno by ID
+app.put('/alumnos/:id', async (req, res) => {
+  const { isValid, message } = validarAlumno(req.body);
+  if (!isValid) return res.status(400).json({ error: message });
+
+  try {
+    const alumno = await Alumno.findByPk(req.params.id);
+    if (!alumno) {
+      return res.status(404).json({ error: 'Alumno no encontrado.' });
+    }
+    await alumno.update(req.body);
+    res.status(200).json(alumno);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+// Endpoints de profesores
+app.get('/profesores', async (req, res) => {
+  try {
+    const profesores = await Profesor.findAll();
+    res.status(200).json(profesores);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/profesores', async (req, res) => {
+  const { isValid, message } = validarProfesor(req.body);
+  if (!isValid) return res.status(400).json({ error: message });
+
+  try {
+    const profesor = await Profesor.create(req.body);
+    res.status(201).json(profesor);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/profesores/:id', async (req, res) => {
+  try {
+    const profesor = await Profesor.findByPk(req.params.id);
+    if (!profesor) {
+      return res.status(404).json({ error: 'Profesor no encontrado.' });
+    }
+    res.status(200).json(profesor);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/profesores/:id', async (req, res) => {
+  const { isValid, message } = validarProfesor(req.body);
+  if (!isValid) return res.status(400).json({ error: message });
+
+  try {
+    const profesor = await Profesor.findByPk(req.params.id);
+    if (!profesor) {
+      return res.status(404).json({ error: 'Profesor no encontrado.' });
+    }
+    await profesor.update(req.body);
+    res.status(200).json(profesor);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/profesores/:id', async (req, res) => {
+  try {
+    const profesor = await Profesor.findByPk(req.params.id);
+    if (!profesor) {
+      return res.status(404).json({ error: 'Profesor no encontrado.' });
+    }
+    await profesor.destroy();
+    res.status(200).json({ message: 'Profesor eliminado.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Verify Session
+app.post('/alumnos/:id/session/verify', async (req, res) => {
+  try {
+    const { sessionString } = req.body;
+    const session = await dynamoDB.get({
+      TableName: 'sesiones-alumnos',
+      Key: { 
+        alumnoId: req.params.id,
+        sessionString: sessionString  // CHANGE: Specify the exact sessionString
+      }
+    }).promise();
+
+    if (session.Item?.sessionString === sessionString && session.Item.active) {
+      return res.status(200).json({ message: 'Sesión válida.' });
+    }
+    res.status(400).json({ error: 'Sesión inválida o expirada.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/alumnos/:id', async (req, res) => {
+  try {
+    const alumno = await Alumno.findByPk(req.params.id);
+    if (!alumno) {
+      return res.status(404).json({ error: 'Alumno no encontrado.' });
+    }
+    
+    await alumno.destroy();
+    res.status(200).json({ message: 'Alumno eliminado exitosamente.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 app.post('/alumnos/:id/send-email', async (req, res) => {
   try {
@@ -197,96 +370,6 @@ app.post('/alumnos/:id/send-email', async (req, res) => {
     await sns.publish(params).promise();
     res.status(200).json({ message: 'Email enviado exitosamente' });
   } catch (error) {
-    console.error('Error al enviar email:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-// Gestión de sesiones
-app.post('/alumnos/:id/session/login', async (req, res) => {
-  try {
-    const { password } = req.body;
-    const alumno = await Alumno.findByPk(req.params.id);
-    if (!alumno || !bcrypt.compareSync(password, alumno.password)) {
-      return res.status(400).json({ error: 'Credenciales inválidas.' });
-    }
-
-    const sessionString = uuid.v4().replace(/-/g, ''); // Ensure 128-character session string
-    const fullSessionString = sessionString.repeat(4).slice(0, 128);
-
-    await dynamoDB.put({
-      TableName: 'sesiones-alumnos',
-      Item: {
-        alumnoId: req.params.id, 
-        sessionString: fullSessionString, 
-        active: true,
-        createdAt: new Date().toISOString()
-      }
-    }).promise();
-
-    res.status(200).json({ sessionString: fullSessionString });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/alumnos/:id/session/logout', async (req, res) => {
-  try {
-    const { sessionString } = req.body;
-    
-    await dynamoDB.update({
-      TableName: 'sesiones-alumnos',
-      Key: { 
-        alumnoId: req.params.id,
-        sessionString: sessionString 
-      },
-      UpdateExpression: 'SET active = :inactive',
-      ExpressionAttributeValues: { ':inactive': false }
-    }).promise();
-
-    res.status(200).json({ message: 'Sesión cerrada.' });
-  } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/alumnos/:id/session/verify', async (req, res) => {
-  try {
-    const { sessionString } = req.body;
-    const result = await dynamoDB.query({
-      TableName: 'sesiones-alumnos',
-      KeyConditionExpression: 'alumnoId = :id AND sessionString = :session',
-      FilterExpression: 'active = :activeStatus',
-      ExpressionAttributeValues: {
-        ':id': req.params.id,
-        ':session': sessionString,
-        ':activeStatus': true
-      }
-    }).promise();
-
-    if (result.Count > 0) {
-      return res.status(200).json({ message: 'Sesión válida.' });
-    }
-    res.status(400).json({ error: 'Sesión inválida o expirada.' });
-  } catch (error) {
-    console.error('Verify session error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Add Delete Alumno Endpoint
-app.delete('/alumnos/:id', async (req, res) => {
-  try {
-    const alumno = await Alumno.findByPk(req.params.id);
-    if (!alumno) {
-      return res.status(404).json({ error: 'Alumno no encontrado.' });
-    }
-    
-    await alumno.destroy();
-    res.status(200).json({ message: 'Alumno eliminado exitosamente.' });
-  } catch (error) {
-    console.error('Delete alumno error:', error);
     res.status(500).json({ error: error.message });
   }
 });
