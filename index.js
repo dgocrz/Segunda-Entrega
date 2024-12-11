@@ -145,23 +145,23 @@ app.post('/alumnos', async (req, res) => {
 
 app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
   try {
-    const alumno = await Alumno.findByPk(req.params.id);
-    if (!alumno) {
-      return res.status(404).json({ error: 'Alumno no encontrado.' });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ error: 'No se ha proporcionado ninguna foto.' });
-    }
+   const alumno = await Alumno.findByPk(req.params.id);
+if (!alumno) {
+    return res.status(404).json({ error: 'Alumno no encontrado.' });
+}
+if (!req.file) {
+    return res.status(400).json({ error: 'No se ha proporcionado ninguna foto.' });
+}
 
     // Configuración de los parámetros de subida a S3
-    const params = {
-      Bucket: S3_BUCKET,
-      Key: `alumnos/${uuid.v4()}-${req.file.originalname}`, // Nombre único del archivo en S3
-      Body: req.file.buffer, // Contenido del archivo
-      ContentType: req.file.mimetype, // Tipo MIME del archivo
-      ACL: 'public-read', // Acceso público al archivo
-    };
+   const params = {
+    Bucket: S3_BUCKET,
+    Key: `alumnos/${uuid.v4()}-${req.file.originalname}`, // Nombre único
+    Body: req.file.buffer, // Contenido del archivo
+    ContentType: req.file.mimetype, // Tipo MIME
+    ACL: 'public-read' // Asegura que la foto sea accesible públicamente
+};
+
 
     // Subir el archivo a S3
     const command = new PutObjectCommand(params);
@@ -169,18 +169,19 @@ app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
 
     // Obtener la URL pública del archivo
     const fotoPerfilUrl = `https://${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${params.Key}`;
-
-    // Guardar la URL en el registro del alumno
-    alumno.fotoPerfilUrl = fotoPerfilUrl;
-    await alumno.save();
+  alumno.fotoPerfilUrl = fotoPerfilUrl;
+  await alumno.save();
 
     // Responder con la URL de la foto
     res.status(200).json({ fotoPerfilUrl });
-  } catch (error) {
-    console.error('Error al subir la foto de perfil:', error);
-    res.status(500).json({ error: 'Error al subir la foto de perfil.' });
-  }
-});
+  } try {
+    const command = new PutObjectCommand(params);
+    await s3Client.send(command);
+} catch (error) {
+    console.error('Error al subir a S3:', error);
+    return res.status(500).json({ error: 'No se pudo subir la foto a S3.' });
+}
+
 // Gestión de sesiones
 app.post('/alumnos/:id/session/login', async (req, res) => {
   try {
@@ -356,23 +357,31 @@ app.delete('/alumnos/:id', async (req, res) => {
 
 
 app.post('/alumnos/:id/send-email', async (req, res) => {
-  try {
-    const alumno = await Alumno.findByPk(req.params.id);
-    if (!alumno) {
-      return res.status(404).json({ error: 'Alumno no encontrado.' });
+    try {
+        const alumno = await Alumno.findByPk(req.params.id);
+        if (!alumno) {
+            return res.status(404).json({ error: 'Alumno no encontrado.' });
+        }
+
+        const params = {
+            Message: `Email para alumno: ${alumno.nombres} ${alumno.apellidos}`,
+            TopicArn: SNS_TOPIC_ARN
+        };
+
+        await sns.publish(params).promise();
+        res.status(200).json({ message: 'Email enviado exitosamente' });
+    } catch (error) {
+        console.error('Error al enviar correo:', error);
+        res.status(500).json({ error: 'Error al enviar el correo.' });
     }
-
-    const params = {
-      Message: `Email para alumno: ${alumno.nombres} ${alumno.apellidos}`,
-      TopicArn: SNS_TOPIC_ARN
-    };
-
-    await sns.publish(params).promise();
-    res.status(200).json({ message: 'Email enviado exitosamente' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
 });
+  
+app.all('/alumnos/:id/fotoPerfil', (req, res) => {
+    if (!['POST', 'GET'].includes(req.method)) {
+        return res.status(405).json({ error: 'Método no permitido.' });
+    }
+});
+
 // Sincronización e inicio del servidor
 const PORT = 3000;
 sequelize.sync()
