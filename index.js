@@ -145,41 +145,30 @@ app.post('/alumnos', async (req, res) => {
 
 app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
   try {
-   const alumno = await Alumno.findByPk(req.params.id);
-if (!alumno) {
-    return res.status(404).json({ error: 'Alumno no encontrado.' });
-}
-if (!req.file) {
-    return res.status(400).json({ error: 'No se ha proporcionado ninguna foto.' });
-}
-
-    // Configuración de los parámetros de subida a S3
-app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
-  try {
     const alumno = await Alumno.findByPk(req.params.id);
     if (!alumno) {
-        return res.status(404).json({ error: 'Alumno no encontrado.' });
+      return res.status(404).json({ error: 'Alumno no encontrado.' });
     }
     if (!req.file) {
-        return res.status(400).json({ error: 'No se ha proporcionado ninguna foto.' });
+      return res.status(400).json({ error: 'No se ha proporcionado ninguna foto.' });
     }
 
     // Configuración de los parámetros de subida a S3
     const params = {
-        Bucket: S3_BUCKET,
-        Key: `alumnos/${uuid.v4()}-${req.file.originalname}`, // Nombre único
-        Body: req.file.buffer, // Contenido del archivo
-        ContentType: req.file.mimetype, // Tipo MIME
-        ACL: 'public-read' // Asegura que la foto sea accesible públicamente
+      Bucket: S3_BUCKET,
+      Key: `alumnos/${uuid.v4()}-${req.file.originalname}`, // Nombre único
+      Body: req.file.buffer, // Contenido del archivo
+      ContentType: req.file.mimetype, // Tipo MIME
+      ACL: 'public-read' // Asegura que la foto sea accesible públicamente
     };
 
     // Subir el archivo a S3
     try {
-        const command = new PutObjectCommand(params);
-        await s3Client.send(command);
+      const command = new PutObjectCommand(params);
+      await s3Client.send(command);
     } catch (error) {
-        console.error('Error al subir a S3:', error);
-        return res.status(500).json({ error: 'No se pudo subir la foto a S3.' });
+      console.error('Error al subir a S3:', error);
+      return res.status(500).json({ error: 'No se pudo subir la foto a S3.' });
     }
 
     // Obtener la URL pública del archivo
@@ -189,7 +178,7 @@ app.post('/alumnos/:id/fotoPerfil', upload.single('foto'), async (req, res) => {
 
     // Responder con la URL de la foto
     res.status(200).json({ fotoPerfilUrl });
-    catch (error) {
+  } catch (error) {
     console.error('Error en el endpoint /alumnos/:id/fotoPerfil:', error);
     res.status(500).json({ error: 'Error interno del servidor.' });
   }
