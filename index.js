@@ -88,7 +88,7 @@ const Profesor = sequelize.define('Profesor', {
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Funciones de validación
-unction validarAlumno(data) {
+function validarAlumno(data) {
   const errors = [];
   
   // Elimina validaciones estrictas
