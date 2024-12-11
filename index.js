@@ -174,7 +174,7 @@ if (!req.file) {
 
     // Responder con la URL de la foto
     res.status(200).json({ fotoPerfilUrl });
-  } try {
+  try {
     const command = new PutObjectCommand(params);
     await s3Client.send(command);
 } catch (error) {
